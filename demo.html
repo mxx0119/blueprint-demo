@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图纸识别与检验项配置方案 Demo</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        .blueprint-canvas {
+            background-image: radial-gradient(rgba(255,255,255,0.15) 1px, transparent 0);
+            background-size: 24px 24px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased" id="app">
+
+    <header class="bg-slate-900 text-white shadow-md px-6 py-4 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-600 p-2 rounded text-white font-bold text-xl">永益</div>
+            <div>
+                <h1 class="text-lg font-bold">图纸识别管理系统</h1>
+                <p class="text-xs text-slate-400">基于永益 v1.1 设计方案高保真 Demo</p>
+            </div>
+        </div>
+        <div class="text-sm bg-slate-800 px-4 py-2 rounded-full border border-slate-700">
+            当前模块: <span class="text-blue-400 font-medium" id="current-view-title">图纸管理工作台</span>
+        </div>
+    </header>
+
+    <main class="p-6 max-w-7xl mx-auto">
+        
+        <div id="view-list" class="space-y-6">
+            <div class="bg-white p-4 rounded-xl shadow-xs border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">图纸名称</label>
+                    <input type="text" placeholder="输入图纸名称搜索..." class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">关联产品</label>
+                    <input type="text" placeholder="输入关联产品..." class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">识别状态</label>
+                    <select class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:border-blue-500">
+                        <option>全部状态</option>
+                        <option>未识别</option>
+                        <option>识别中</option>
+                        <option>已识别</option>
+                    </select>
+                </div>
+                <div class="flex space-x-2">
+                    <button class="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition">查询</button>
+                    <button onclick="openUploadModal()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-2 px-4 rounded-lg shadow-xs transition flex items-center justify-center space-x-1">
+                        <span>＋ 上传图纸</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-xs border border-gray-200 overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase">
+                            <th class="py-3 px-4">图纸编号</th>
+                            <th class="py-3 px-4">图纸名称</th>
+                            <th class="py-3 px-4">关联产品 (必填)</th>
+                            <th class="py-3 px-4">文档状态</th>
+                            <th class="py-3 px-4">图纸识别状态</th>
+                            <th class="py-3 px-4 text-right">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm divide-y divide-gray-100" id="blueprint-table-body">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+
+        <div id="view-detail" class="hidden space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl border border-gray-200 shadow-xs gap-4">
+                <div>
+                    <button onclick="switchView('list')" class="text-gray-500 hover:text-slate-800 text-sm font-medium flex items-center space-x-1 mb-1">
+                        <span>← 返回图纸列表</span>
+                    </button>
+                    <h2 class="text-lg font-bold text-gray-900" id="detail-title">图纸主轴数字化识别画布</h2>
+                </div>
+                
+                <div class="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-end">
+                    <div class="bg-gray-100 p-1 rounded-lg flex space-x-1 text-xs font-medium">
+                        <button id="btn-mode-split" onclick="toggleLayoutMode('split')" class="px-3 py-1.5 rounded-md transition shadow-xs bg-white text-blue-600">分屏模式</button>
+                        <button id="btn-mode-normal" onclick="toggleLayoutMode('normal')" class="px-3 py-1.5 rounded-md transition text-gray-600 hover:text-gray-900">普通模式</button>
+                    </div>
+                    <button onclick="saveAllItems()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-xs transition">
+                        批量确认并保存
+                    </button>
+                </div>
+            </div>
+
+            <div id="workspace-container" class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                
+                <div id="canvas-panel" class="lg:col-span-7 bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-700 flex flex-col h-[600px] relative">
+                    <div class="absolute top-6 left-6 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 flex items-center space-x-3 text-white text-xs z-10 shadow-lg">
+                        <button onclick="zoomCanvas(0.1)" class="hover:text-blue-400 p-1 font-bold">➕ 放大</button>
+                        <span class="text-slate-500">|</span>
+                        <button onclick="zoomCanvas(-0.1)" class="hover:text-blue-400 p-1 font-bold">➖ 缩小</button>
+                        <span class="text-slate-500">|</span>
+                        <span class="text-slate-300 font-mono" id="zoom-indicator">100%</span>
+                        <span class="text-slate-500">|</span>
+                        <span class="text-amber-400 flex items-center">🔍 框选点击定位</span>
+                    </div>
+
+                    <div class="flex-1 w-full overflow-auto rounded-lg bg-slate-950 border border-slate-900 relative blueprint-canvas flex items-center justify-center">
+                        <div id="blueprint-wrapper" class="relative transition-transform duration-200" style="transform: scale(1); width: 600px; height: 400px;">
+                            <div class="absolute inset-0 border-2 border-dashed border-slate-800 flex items-center justify-center text-slate-700 font-mono text-xs select-none">
+                                [ 永益标准产品机械装配加工图纸底图 ]
+                            </div>
+                            
+                            <div id="box-1" onclick="selectInspectionItem(0)" class="absolute border-2 border-blue-500 bg-blue-500/10 cursor-pointer hover:bg-blue-500/30 transition shadow-md flex items-center justify-center" style="top: 80px; left: 120px; width: 110px; height: 45px;">
+                                <span class="bg-blue-600 text-white text-[10px] px-1 absolute -top-5 left-0 rounded">#1 长度</span>
+                            </div>
+
+                            <div id="box-2" onclick="selectInspectionItem(1)" class="absolute border-2 border-purple-500 bg-purple-500/10 cursor-pointer hover:bg-purple-500/30 transition shadow-md flex items-center justify-center" style="top: 180px; left: 340px; width: 130px; height: 50px;">
+                                <span class="bg-purple-600 text-white text-[10px] px-1 absolute -top-5 left-0 rounded">#2 直径公差</span>
+                            </div>
+
+                            <div id="box-3" onclick="selectInspectionItem(2)" class="absolute border-2 border-amber-500 bg-amber-500/10 cursor-pointer hover:bg-amber-500/30 transition shadow-md flex items-center justify-center" style="top: 290px; left: 200px; width: 90px; height: 45px;">
+                                <span class="bg-amber-600 text-white text-[10px] px-1 absolute -top-5 left-0 rounded">#3 形位公差</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="data-panel" class="lg:col-span-5 space-y-4 max-h-[600px] overflow-y-auto pr-1">
+                    
+                    <div id="split-card-view" class="bg-white p-5 rounded-xl border border-gray-200 shadow-xs space-y-4">
+                        <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                            <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-slate-100 text-slate-700" id="card-index-label">当前项：1 / 3</span>
+                            <span id="card-status-badge" class="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">待确认</span>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">AI 局部图纸裁剪切片 (支持旋转度数识别)</label>
+                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center relative min-h-[90px]">
+                                <div id="crop-img-preview" class="font-mono text-xl font-bold tracking-wider text-slate-800 transition-transform duration-200">
+                                    330±0.1
+                                </div>
+                                <button onclick="rotateCropImage()" class="absolute bottom-2 right-2 text-xs bg-white border border-gray-300 text-gray-600 px-2 py-1 rounded hover:bg-gray-50 flex items-center space-x-1 shadow-xs">
+                                    🔄 顺时针旋转 30°
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="col-span-2">
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">检验项名称 <span class="text-red-500">*</span></label>
+                                <input type="text" id="inp-name" class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">识别类型</label>
+                                <input type="text" id="inp-type" readonly class="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 text-gray-500 rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">单位</label>
+                                <select id="inp-unit" class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:border-blue-500 focus:outline-none">
+                                    <option value="mm">mm</option>
+                                    <option value="°">°</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">标准值/上限 <span class="text-red-500">*</span></label>
+                                <input type="text" id="inp-val" class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">下限值</label>
+                                <input type="text" id="inp-low" class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">描述/智能释义</label>
+                                <input type="text" id="inp-desc" class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center pt-3 border-t border-gray-100">
+                            <button onclick="deleteCurrentItem()" class="text-red-600 hover:text-red-700 text-xs font-medium">🗑️ 删除此标记</button>
+                            <div class="flex space-x-2">
+                                <button onclick="navigateItem(-1)" class="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs hover:bg-gray-50">上一个</button>
+                                <button onclick="confirmCurrentItem()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg text-xs shadow-xs">✔ 确认当前项</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="normal-table-view" class="hidden bg-white p-4 rounded-xl border border-gray-200 shadow-xs space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-xs font-bold text-gray-700 uppercase tracking-wider">批量核对数据明细表</h3>
+                            <button onclick="addNewBlankRow()" class="text-blue-600 hover:text-blue-700 text-xs font-medium">➕ 手动新增行</button>
+                        </div>
+                        <div class="overflow-x-auto text-xs">
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="bg-gray-50 border-b border-gray-200 text-gray-500 font-medium">
+                                        <th class="p-2">序号</th>
+                                        <th class="p-2">切片</th>
+                                        <th class="p-2">检验项名称</th>
+                                        <th class="p-2">标准值</th>
+                                        <th class="p-2">上限/下限</th>
+                                        <th class="p-2">状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="normal-list-tbody" class="divide-y divide-gray-100">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="upload-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-xl border border-gray-200 w-full max-w-md overflow-hidden transform scale-95 transition-transform duration-200">
+            <div class="bg-slate-50 border-b border-gray-100 px-5 py-4 flex justify-between items-center">
+                <h3 class="font-bold text-gray-900">基础配置 - 上传新图纸</h3>
+                <button onclick="closeUploadModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">选择本地图纸文件 (仅限 PNG/JPG) <span class="text-red-500">*</span></label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition cursor-pointer bg-gray-50">
+                        <span class="text-gray-400 text-2xl block mb-1">📁</span>
+                        <span class="text-xs text-gray-500" id="file-upload-status">点击选择或拖拽图纸文件至此</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">手动关联对应产品 <span class="text-red-500">*</span></label>
+                    <select id="modal-product-select" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:border-blue-500">
+                        <option value="永益精密传动主轴轴承">永益精密传动主轴轴承 (P-001)</option>
+                        <option value="液压泵单向控制阀体">液压泵单向控制阀体 (P-002)</option>
+                        <option value="工业伺服电机驱动机壳">工业伺服电机驱动机壳 (P-003)</option>
+                    </select>
+                </div>
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                    💡 <strong>交互说明：</strong> 上传提交后将自动进入审批流程。审批通过后系统自动发起AI大模型对图纸的数值及公差进行切片识别。
+                </div>
+            </div>
+            <div class="bg-slate-50 px-5 py-3 border-t border-gray-100 flex justify-end space-x-2">
+                <button onclick="closeUploadModal()" class="px-4 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-100 transition">取消</button>
+                <button onclick="submitUploadForm()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg shadow-sm transition">提交审批</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // 模拟基础初始数据仓库
+        let blueprints = [
+            { id: "DWG-2026-001", name: "精密动力输出主轴加工图.png", product: "永益精密传动主轴轴承", docStatus: "正常", ocrStatus: "已识别" },
+            { id: "DWG-2026-002", name: "多路控制阀体核心结构面.jpg", product: "液压泵单向控制阀体", docStatus: "正常", ocrStatus: "识别中" },
+            { id: "DWG-2026-003", name: "液压泵体密封环槽精切图.png", product: "未关联", docStatus: "正常", ocrStatus: "未识别" }
+        ];
+
+        // 模拟图纸中AI检测出来的具体检验公差标记项
+        let mockOcrItems = [
+            { name: "主轴段长度检验1", type: "长度", unit: "mm", value: "330", lowerLimit: "-0.1", textDesc: "公差标准±0.1", isConfirmed: false, cropText: "330±0.1", rotation: 0 },
+            { name: "核心轴承位直径检验2", type: "直径公差", unit: "mm", value: "Ø120", lowerLimit: "+0.017", textDesc: "公差标准孔轴Js7", isConfirmed: false, cropText: "Φ120js7(±0.017)", rotation: 0 },
+            { name: "端面位置度形位公差3", type: "同轴度公差", unit: "mm", value: "0.04", lowerLimit: "A", textDesc: "基准面A圆跳动同轴公差", isConfirmed: false, cropText: "◎ 0.04 | A", rotation: 0 }
+        ];
+
+        let currentActiveItemIndex = 0; // 当前在分屏编辑卡片里的公差序号
+        let currentScale = 1; // 画布放大系数
+
+        // 初始化表格渲染
+        function renderTable() {
+            const tbody = document.getElementById("blueprint-table-body");
+            tbody.innerHTML = "";
+            blueprints.forEach((bp, index) => {
+                let badgeColor = "bg-gray-100 text-gray-700";
+                if(bp.ocrStatus === "已识别") badgeColor = "bg-emerald-100 text-emerald-700 font-medium";
+                if(bp.ocrStatus === "识别中") badgeColor = "bg-blue-100 text-blue-700 animate-pulse";
+                
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition duration-150">
+                        <td class="py-3 px-4 font-mono font-medium text-slate-600">${bp.id}</td>
+                        <td class="py-3 px-4 text-slate-900 font-medium">${bp.name}</td>
+                        <td class="py-3 px-4 text-gray-600">${bp.product}</td>
+                        <td class="py-3 px-4"><span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-800">${bp.docStatus}</span></td>
+                        <td class="py-3 px-4"><span class="px-2.5 py-1 rounded text-xs ${badgeColor}">${bp.ocrStatus}</span></td>
+                        <td class="py-3 px-4 text-right space-x-1">
+                            ${bp.ocrStatus === '已识别' ? 
+                                `<button onclick="enterOcrDetail('${bp.name}')" class="text-blue-600 hover:text-blue-800 text-xs font-semibold bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition">图纸识别详情</button>` : 
+                                bp.ocrStatus === '识别中' ?
+                                `<span class="text-xs text-gray-400 italic">自动运行识别中...</span>` :
+                                `<button onclick="triggerSimulateOcr(${index})" class="text-amber-600 hover:text-amber-800 text-xs font-semibold bg-amber-50 px-2 py-1 rounded hover:bg-amber-100 transition">发起识别算法</button>`
+                            }
+                            <button onclick="alert('触发方案3.5变更点：换绑产品/作废审批流程')" class="text-gray-400 hover:text-gray-600 text-xs ml-1">⚙️ 更多</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // 模块界面路由切换
+        function switchView(viewName) {
+            const viewList = document.getElementById("view-list");
+            const viewDetail = document.getElementById("view-detail");
+            const titleSpan = document.getElementById("current-view-title");
+
+            if(viewName === 'list') {
+                viewList.classList.remove("hidden");
+                viewDetail.classList.add("hidden");
+                titleSpan.innerText = "图纸管理工作台";
+            } else {
+                viewList.classList.add("hidden");
+                viewDetail.classList.remove("hidden");
+                titleSpan.innerText = "图纸数字化AI工作台";
+            }
+        }
+
+        // 上传模拟控制
+        function openUploadModal() { document.getElementById("upload-modal").classList.remove("hidden"); }
+        function closeUploadModal() { document.getElementById("upload-modal").classList.add("hidden"); }
+        function submitUploadForm() {
+            const pSelect = document.getElementById("modal-product-select").value;
+            const randomId = "DWG-2026-0" + (blueprints.length + 1);
+            blueprints.push({
+                id: randomId,
+                name: "USER_DRAWING_" + randomId + ".png",
+                product: pSelect,
+                docStatus: "审批中",
+                ocrStatus: "未识别"
+            });
+            closeUploadModal();
+            renderTable();
+            alert("图纸提交审批成功！状态已变更为【审批中】，审批通过后将根据设计方案自动唤醒大模型图纸识别流程。");
+        }
+
+        // 模拟触发AI智能框选切片识别
+        function triggerSimulateOcr(index) {
+            blueprints[index].ocrStatus = "识别中";
+            renderTable();
+            setTimeout(() => {
+                blueprints[index].ocrStatus = "已识别";
+                blueprints[index].docStatus = "正常";
+                renderTable();
+                alert(`图纸 [${blueprints[index].name}] 大模型微裁切及形位尺寸识别已完成！已成功自动输出独立检验框，请点击详情查看。`);
+            }, 1500);
+        }
+
+        // 进入工作台详情
+        function enterOcrDetail(name) {
+            document.getElementById("detail-title").innerText = `图纸识别结果核对核验页 — ${name}`;
+            switchView('detail');
+            selectInspectionItem(0);
+            syncToNormalTable();
+        }
+
+        // 分屏卡片数据表单绑定加载
+        function selectInspectionItem(index) {
+            currentActiveItemIndex = index;
+            const item = mockOcrItems[index];
+            
+            // 同步激活高亮图纸上的SVG/框格边界样式
+            for(let i=1; i<=3; i++) {
+                const box = document.getElementById(`box-${i}`);
+                if(i === (index + 1)) {
+                    box.classList.add("ring-4", "ring-emerald-400", "bg-emerald-500/20");
+                } else {
+                    box.classList.remove("ring-4", "ring-emerald-400", "bg-emerald-500/20");
+                }
+            }
+
+            // 反写到表单组件
+            document.getElementById("card-index-label").innerText = `当前项：${index + 1} / ${mockOcrItems.length}`;
+            document.getElementById("crop-img-preview").innerText = item.cropText;
+            document.getElementById("crop-img-preview").style.transform = `rotate(${item.rotation}deg)`;
+            document.getElementById("inp-name").value = item.name;
+            document.getElementById("inp-type").value = item.type;
+            document.getElementById("inp-unit").value = item.unit;
+            document.getElementById("inp-val").value = item.value;
+            document.getElementById("inp-low").value = item.lowerLimit;
+            document.getElementById("inp-desc").value = item.textDesc;
+
+            const badge = document.getElementById("card-status-badge");
+            if(item.isConfirmed) {
+                badge.innerText = "已确认";
+                badge.className = "text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700";
+            } else {
+                badge.innerText = "待确认";
+                badge.className = "text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700";
+            }
+        }
+
+        // 旋转切片预览功能
+        function rotateCropImage() {
+            let item = mockOcrItems[currentActiveItemIndex];
+            item.rotation = (item.rotation + 30) % 360; // 顺时针单次旋转30度
+            document.getElementById("crop-img-preview").style.transform = `rotate(${item.rotation}deg)`;
+        }
+
+        // 导航切换上一个下一个项
+        function navigateItem(direction) {
+            let nextIndex = currentActiveItemIndex + direction;
+            if(nextIndex >= 0 && nextIndex < mockOcrItems.length) {
+                selectInspectionItem(nextIndex);
+            } else {
+                alert("没有更多识别产生的尺寸检验数据了。");
+            }
+        }
+
+        // 确认当前单项尺寸数据
+        function confirmCurrentItem() {
+            let item = mockOcrItems[currentActiveItemIndex];
+            // 保存用户实时在Demo中修改的内容
+            item.name = document.getElementById("inp-name").value;
+            item.unit = document.getElementById("inp-unit").value;
+            item.value = document.getElementById("inp-val").value;
+            item.lowerLimit = document.getElementById("inp-low").value;
+            item.textDesc = document.getElementById("inp-desc").value;
+            item.isConfirmed = true;
+
+            alert(`检验项「${item.name}」已复核确认！数据状态变更为【已确认】并保存至产品级当前检验项缓存中。`);
+            
+            // 自动流转下一个
+            if(currentActiveItemIndex < mockOcrItems.length - 1) {
+                selectInspectionItem(currentActiveItemIndex + 1);
+            } else {
+                selectInspectionItem(currentActiveItemIndex);
+            }
+            syncToNormalTable();
+        }
+
+        // 删除某项尺寸框
+        function deleteCurrentItem() {
+            if(confirm("确定要删除当前AI圈定的尺寸框吗？删除后对应的识别数据也将同步移除。")) {
+                mockOcrItems.splice(currentActiveItemIndex, 1);
+                alert("删除成功。");
+                if(mockOcrItems.length > 0) {
+                    selectInspectionItem(0);
+                } else {
+                    switchView('list');
+                }
+                syncToNormalTable();
+            }
+        }
+
+        // 画布多层级变焦控制
+        function zoomCanvas(amount) {
+            currentScale += amount;
+            if(currentScale < 0.6) currentScale = 0.6;
+            if(currentScale > 2) currentScale = 2;
+            document.getElementById("blueprint-wrapper").style.transform = `scale(${currentScale})`;
+            document.getElementById("zoom-indicator").innerText = Math.round(currentScale * 100) + "%";
+        }
+
+        // 分屏模式与全平铺普通模式布局切换交互
+        function toggleLayoutMode(mode) {
+            const btnSplit = document.getElementById("btn-mode-split");
+            const btnNormal = document.getElementById("btn-mode-normal");
+            const splitCard = document.getElementById("split-card-view");
+            const normalTable = document.getElementById("normal-table-view");
+            const canvasPanel = document.getElementById("canvas-panel");
+
+            if(mode === 'split') {
+                btnSplit.className = "px-3 py-1.5 rounded-md transition shadow-xs bg-white text-blue-600";
+                btnNormal.className = "px-3 py-1.5 rounded-md transition text-gray-600 hover:text-gray-900";
+                splitCard.classList.remove("hidden");
+                normalTable.classList.add("hidden");
+                canvasPanel.className = "lg:col-span-7 bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-700 flex flex-col h-[600px] relative";
+            } else {
+                btnNormal.className = "px-3 py-1.5 rounded-md transition shadow-xs bg-white text-blue-600";
+                btnSplit.className = "px-3 py-1.5 rounded-md transition text-gray-600 hover:text-gray-900";
+                splitCard.classList.add("hidden");
+                normalTable.classList.remove("hidden");
+                canvasPanel.className = "lg:col-span-12 bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-700 flex flex-col h-[320px] relative";
+            }
+        }
+
+        // 同步底层数据至普通模式的平铺表格
+        function syncToNormalTable() {
+            const tbody = document.getElementById("normal-list-tbody");
+            tbody.innerHTML = "";
+            mockOcrItems.forEach((item, index) => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-2 font-mono">${index + 1}</td>
+                        <td class="p-2 font-mono bg-gray-100 text-slate-700 rounded text-center font-bold">${item.cropText}</td>
+                        <td class="p-2"><input type="text" value="${item.name}" class="border border-gray-200 px-2 py-1 rounded w-full"></td>
+                        <td class="p-2"><input type="text" value="${item.value}" class="border border-gray-200 px-2 py-1 rounded w-20"></td>
+                        <td class="p-2 text-gray-500">${item.lowerLimit}</td>
+                        <td class="p-2">
+                            <span class="px-2 py-0.5 rounded text-[11px] ${item.isConfirmed ? 'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800'}">
+                                ${item.isConfirmed ? '已确认' : '待确认'}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // 普通模式下手动的表格空行追加
+        function addNewBlankRow() {
+            mockOcrItems.push({
+                name: "手动新增通用检验项_" + (mockOcrItems.length + 1),
+                type: "长度",
+                unit: "mm",
+                value: "0.00",
+                lowerLimit: "0",
+                textDesc: "用户手动新增",
+                isConfirmed: true,
+                cropText: "[空]",
+                rotation: 0
+            });
+            syncToNormalTable();
+        }
+
+        // 批量全量保存退出
+        function saveAllItems() {
+            mockOcrItems.forEach(i => i.isConfirmed = true);
+            alert("执行成功：已完成全量检验明细批量核对复核，当前所有检验标准均已发布至对应产品的主加工工艺及检验标准主库中！");
+            switchView('list');
+        }
+
+        // 页面首次加载逻辑
+        window.onload = function() {
+            renderTable();
+        }
+    </script>
+</body>
+</html>
